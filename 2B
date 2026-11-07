@@ -1,0 +1,45 @@
+clear all; close all; clc; % Start Fresh
+try, delete(serialportfind); end % Close any old ports left open
+
+PLOTTING_LENGTH = 10; % Max seconds to show on plot
+Fs = 50;              % Arduino Sampling Frequency (Hz)
+
+%% Connect to Arduino through Serial
+ARDUINO_SERIAL_PORT = 'COM5'; % Change this (Win: 'COM?', MAC: '/dev/cu.usbmodem?')
+arduinoSerial = serialport(ARDUINO_SERIAL_PORT, 9600);
+configureTerminator(arduinoSerial, "LF");
+pause(1)                      % Wait for data on Serial
+flush(arduinoSerial);         % Throw away old/broken data
+readline(arduinoSerial);      % Take out broken first line
+
+%% Initialize Plotting axis
+fig1 = figure();
+set(fig1,'Units','normalized')
+set(fig1,'Position',[0.1,0.1,0.8,0.8])
+ii = 0;          % Initialize counter
+time = [];
+sens = [];
+
+%% Main Loop
+while ishghandle(fig1)
+    while arduinoSerial.NumBytesAvailable > 0
+        line = readline(arduinoSerial);
+        vals = sscanf(char(line), '%f %f');   % expects "time sensor"
+        if numel(vals) == 2
+            ii = ii + 1;
+            time(ii) = vals(1) / 1000;
+            sens(ii) = vals(2);
+        end
+    end
+
+    if ii > 1
+        %% Update plot
+        cla()
+        plot(time, sens, '-o', 'linewidth', 2)
+        xlabel('Time [s]'), ylabel('Photoresistor Reading')
+        title('Photoresistor Sampled at 50 Hz')
+        xlim([time(max(1, ii-Fs*PLOTTING_LENGTH)), time(ii)+0.001])
+    end
+    pause(0.05) % Give MATLAB time to render plot
+end
+clear arduinoSerial % Close serial connection
